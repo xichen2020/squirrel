@@ -17,6 +17,7 @@ type selectData struct {
 	Columns           []Sqlizer
 	From              Sqlizer
 	Joins             []Sqlizer
+	PreWhereParts     []Sqlizer
 	WhereParts        []Sqlizer
 	GroupBys          []string
 	HavingParts       []Sqlizer
@@ -103,6 +104,14 @@ func (d *selectData) toSql() (sqlStr string, args []interface{}, err error) {
 	if len(d.Joins) > 0 {
 		sql.WriteString(" ")
 		args, err = appendToSql(d.Joins, sql, " ", args)
+		if err != nil {
+			return
+		}
+	}
+
+	if len(d.PreWhereParts) > 0 {
+		sql.WriteString(" PREWHERE ")
+		args, err = appendToSql(d.PreWhereParts, sql, " AND ", args)
 		if err != nil {
 			return
 		}
@@ -286,6 +295,33 @@ func (b SelectBuilder) LeftJoin(join string, rest ...interface{}) SelectBuilder 
 // RightJoin adds a RIGHT JOIN clause to the query.
 func (b SelectBuilder) RightJoin(join string, rest ...interface{}) SelectBuilder {
 	return b.JoinClause("RIGHT JOIN "+join, rest...)
+}
+
+// PreWhere adds an expression to the PREWHERE clause of the query.
+//
+// Expressions are ANDed together in the generated SQL.
+//
+// PreWhere accepts several types for its pred argument:
+//
+// nil OR "" - ignored.
+//
+// string - SQL expression.
+// If the expression has SQL placeholders then a set of arguments must be passed
+// as well, one for each placeholder.
+//
+// map[string]interface{} OR Eq - map of SQL expressions to values. Each key is
+// transformed into an expression like "<key> = ?", with the corresponding value
+// bound to the placeholder. If the value is nil, the expression will be "<key>
+// IS NULL". If the value is an array or slice, the expression will be "<key> IN
+// (?,?,...)", with one placeholder for each item in the value. These expressions
+// are ANDed together.
+//
+// PreWhere will panic if pred isn't any of the above types.
+func (b SelectBuilder) PreWhere(pred interface{}, args ...interface{}) SelectBuilder {
+	if pred == nil || pred == "" {
+		return b
+	}
+	return builder.Append(b, "PreWhereParts", newWherePart(pred, args...)).(SelectBuilder)
 }
 
 // Where adds an expression to the WHERE clause of the query.
