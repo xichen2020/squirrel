@@ -1,4 +1,4 @@
-module github.com/Masterminds/squirrel
+module github.com/xichen2020/squirrel
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
